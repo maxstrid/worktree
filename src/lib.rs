@@ -32,6 +32,23 @@ impl Worktree {
         return Ok(());
     }
 
+    pub fn add_from_gerrit(
+        gerrit_command: String,
+        branch_name: String,
+    ) -> Result<(), Box<dyn Error>> {
+        Self::spawn_cmd(String::from(
+            *gerrit_command
+                .split("&&")
+                .collect::<Vec<&str>>()
+                .get(0)
+                .unwrap(),
+        ))?;
+
+        Self::spawn_cmd(format!("git worktree add {branch_name} FETCH_HEAD"))?;
+
+        Self::spawn_cmd(format!("cd {branch_name} && git switch -c {branch_name}"))
+    }
+
     fn spawn_cmd(command_name: String) -> Result<(), Box<dyn Error>> {
         println!("Running: {command_name}");
 
