@@ -1,28 +1,36 @@
-use std::{collections::HashMap, error::Error, hash::Hash, hash::Hasher};
+use std::{collections::HashMap, error::Error, rc::Rc};
 
-pub trait MainArgument {
-    fn name(&self) -> String;
-    fn handle_sub_args(&self, sub_args: Vec<SubArgument>);
-    fn register_sub_arg(&self, sub_arg: SubArgument);
-    fn sub_args(&self) -> Vec<SubArgument>;
+struct MainArgument {
+    name: &'static str,
+    sub_arguments: Vec<Rc<SubArgument>>,
+    sub_argument_handler: fn(Vec<SubArgument>) -> (),
 }
 
-impl Hash for Box<dyn MainArgument> {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: Hasher,
-    {
-        self.name().hash(state)
+impl MainArgument {
+    pub fn new(name: &'static str, sub_argument_handler: fn(Vec<SubArgument>) -> ()) -> Self {
+        return MainArgument {
+            name,
+            sub_argument_handler,
+            sub_arguments: Vec::new(),
+        };
+    }
+
+    pub fn handle_sub_arguments(&self, sub_args: Vec<SubArgument>) {
+        (self.sub_argument_handler)(sub_args)
+    }
+
+    pub fn register_sub_argument(&mut self, argument: SubArgument) {
+        self.sub_arguments.push(argument.into())
+    }
+
+    pub fn name(&self) -> &str {
+        self.name
+    }
+
+    pub fn sub_arguments(&self) -> Vec<Rc<SubArgument>> {
+        self.sub_arguments.clone()
     }
 }
-
-impl PartialEq for Box<dyn MainArgument> {
-    fn eq(&self, other: &Box<dyn MainArgument>) -> bool {
-        self.name() == other.name()
-    }
-}
-
-impl Eq for Box<dyn MainArgument> {}
 
 trait Argument {
     fn default() -> Self
@@ -48,19 +56,22 @@ pub struct SubArgument {
     short_name: Option<String>,
 }
 
-struct ArgumentParser<'a> {
-    sub_arguments: HashMap<&'a Box<dyn MainArgument>, Vec<SubArgument>>,
+struct ArgumentParser {
+    sub_arguments: HashMap<String, Vec<Rc<SubArgument>>>,
+    main_arguments: HashMap<String, MainArgument>,
 }
 
-impl<'a> ArgumentParser<'a> {
+impl ArgumentParser {
     pub fn new() -> Self {
         return ArgumentParser {
             sub_arguments: HashMap::new(),
+            main_arguments: HashMap::new(),
         };
     }
 
-    pub fn register_main_arg(&mut self, main_arg: &'a Box<dyn MainArgument>) {
-        self.sub_arguments.insert(main_arg, main_arg.sub_args());
+    pub fn register_main_arg(&mut self, main_arg: MainArgument) {
+        self.sub_arguments
+            .insert(String::from(main_arg.name()), main_arg.sub_arguments());
     }
 
     pub fn parse(&self, args: Vec<String>) -> Result<(), Box<dyn Error>> {
